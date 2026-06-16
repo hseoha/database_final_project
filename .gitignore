@@ -1,0 +1,13 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.env
+.vscode/
+.ipynb_checkpoints/
+*.db-journal
+*.db-wal
+*.db-shm
+emart24.db
