@@ -4,6 +4,9 @@ from datetime import datetime
 DB_NAME = "emart24.db"
 
 
+VALID_ORDER_STATUSES = ("ORDERED", "PARTIAL", "FULFILLED", "CANCELLED")
+
+
 def get_connection():
     conn = sqlite3.connect(DB_NAME)
     conn.execute("PRAGMA foreign_keys = ON;")
@@ -15,14 +18,14 @@ def print_rows(rows, headers):
         print("조회 결과가 없습니다.")
         return
 
-    print("-" * 80)
+    print("-" * 100)
     print(" | ".join(headers))
-    print("-" * 80)
+    print("-" * 100)
 
     for row in rows:
         print(" | ".join(str(value) if value is not None else "NULL" for value in row))
 
-    print("-" * 80)
+    print("-" * 100)
 
 
 def customer_menu():
@@ -99,12 +102,23 @@ def product_detail():
         b.brand_name,
         p.specification,
         p.package_type,
-        p.status,
-        GROUP_CONCAT(pt.type_name, ', ') AS categories
+        GROUP_CONCAT(c.category_name, ', ') AS categories,
+        CASE
+            WHEN fb.product_id IS NOT NULL THEN 'FoodBeverageProduct'
+            WHEN dg.product_id IS NOT NULL THEN 'DailyGoodsProduct'
+            WHEN hp.product_id IS NOT NULL THEN 'HealthProduct'
+            ELSE 'GeneralProduct'
+        END AS product_subclass,
+        fb.expiration_date,
+        dg.material,
+        hp.dosage_form
     FROM Product p
     JOIN Brand b ON p.brand_id = b.brand_id
     LEFT JOIN ProductCategory pc ON p.product_id = pc.product_id
-    LEFT JOIN ProductType pt ON pc.type_id = pt.type_id
+    LEFT JOIN Category c ON pc.category_id = c.category_id
+    LEFT JOIN FoodBeverageProduct fb ON p.product_id = fb.product_id
+    LEFT JOIN DailyGoodsProduct dg ON p.product_id = dg.product_id
+    LEFT JOIN HealthProduct hp ON p.product_id = hp.product_id
     WHERE p.product_id = ?
     GROUP BY p.product_id;
     """
@@ -130,7 +144,7 @@ def product_detail():
     print("\n[상품 기본 정보]")
     print_rows(
         rows,
-        ["상품ID", "상품명", "바코드", "브랜드", "규격", "포장", "상태", "분류"]
+        ["상품ID", "상품명", "바코드", "브랜드", "규격", "포장", "분류", "하위타입", "유통기한", "재질", "제형"]
     )
 
     print("\n[매장별 가격 및 재고]")
@@ -147,11 +161,6 @@ def buy_product():
         quantity = int(input("구매 수량: "))
         customer_input = input("회원 고객 ID 입력, 비회원이면 Enter: ").strip()
         customer_id = int(customer_input) if customer_input else None
-        payment_method = input("결제 수단(cash/card/mobile): ").strip()
-
-        if payment_method not in ("cash", "card", "mobile"):
-            print("결제 수단은 cash, card, mobile 중 하나여야 합니다.")
-            return
 
         conn = get_connection()
         cur = conn.cursor()
@@ -183,10 +192,10 @@ def buy_product():
 
         cur.execute(
             """
-            INSERT INTO Sale (sale_datetime, total_amount, payment_method, store_id, customer_id)
-            VALUES (?, ?, ?, ?, ?);
+            INSERT INTO Sale (sale_datetime, total_amount, store_id, customer_id)
+            VALUES (?, ?, ?, ?);
             """,
-            (sale_datetime, total_amount, payment_method, store_id, customer_id)
+            (sale_datetime, total_amount, store_id, customer_id)
         )
 
         sale_id = cur.lastrowid
@@ -216,6 +225,8 @@ def buy_product():
 
     except ValueError:
         print("숫자를 입력해야 하는 항목이 있습니다.")
+    except sqlite3.IntegrityError as error:
+        print(f"구매 처리 중 데이터 무결성 오류가 발생했습니다: {error}")
 
 
 def customer_purchase_history():
@@ -233,8 +244,7 @@ def customer_purchase_history():
             p.product_name,
             si.quantity,
             si.unit_price,
-            sa.total_amount,
-            sa.payment_method
+            sa.total_amount
         FROM Sale sa
         JOIN Store st ON sa.store_id = st.store_id
         JOIN SaleItem si ON sa.sale_id = si.sale_id
@@ -249,7 +259,7 @@ def customer_purchase_history():
 
         print_rows(
             rows,
-            ["판매ID", "구매일시", "매장", "상품명", "수량", "단가", "총액", "결제수단"]
+            ["판매ID", "구매일시", "매장", "상품명", "수량", "단가", "총액"]
         )
 
     except ValueError:
@@ -263,6 +273,7 @@ def manager_menu():
         print("2. 재고 부족 상품 조회")
         print("3. 재고 수량 및 판매 가격 수정")
         print("4. 발주 요청 생성")
+        print("5. 자동 재주문 발주 생성")
         print("0. 뒤로 가기")
 
         choice = input("메뉴를 선택하세요: ")
@@ -275,6 +286,8 @@ def manager_menu():
             update_inventory()
         elif choice == "4":
             create_purchase_order()
+        elif choice == "5":
+            auto_reorder()
         elif choice == "0":
             break
         else:
@@ -383,6 +396,8 @@ def update_inventory():
 
     except ValueError:
         print("숫자를 입력해야 하는 항목이 있습니다.")
+    except sqlite3.IntegrityError as error:
+        print(f"재고 수정 중 데이터 무결성 오류가 발생했습니다: {error}")
 
 
 def create_purchase_order():
@@ -391,7 +406,6 @@ def create_purchase_order():
         supplier_id = int(input("공급업체 ID: "))
         product_id = int(input("발주 상품 ID: "))
         order_quantity = int(input("발주 수량: "))
-        created_by = input("발주 생성자 이름 또는 ID: ")
 
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -400,20 +414,18 @@ def create_purchase_order():
 
         cur.execute(
             """
-            INSERT INTO PurchaseOrder
-                (order_datetime, status, created_by, fulfillment, store_id, supplier_id)
-            VALUES (?, 'pending', ?, 'N', ?, ?);
+            INSERT INTO PurchaseOrder (order_datetime, status, store_id, supplier_id)
+            VALUES (?, 'ORDERED', ?, ?);
             """,
-            (now, created_by, store_id, supplier_id)
+            (now, store_id, supplier_id)
         )
 
         po_id = cur.lastrowid
 
         cur.execute(
             """
-            INSERT INTO PurchaseOrderItem
-                (po_id, product_id, order_quantity, received_quantity, received_datetime)
-            VALUES (?, ?, ?, 0, NULL);
+            INSERT INTO PurchaseOrderItem (po_id, product_id, order_quantity)
+            VALUES (?, ?, ?);
             """,
             (po_id, product_id, order_quantity)
         )
@@ -423,8 +435,109 @@ def create_purchase_order():
 
         print(f"발주 요청 생성 완료! 발주번호: {po_id}")
 
+
     except ValueError:
         print("숫자를 입력해야 하는 항목이 있습니다.")
+    except sqlite3.IntegrityError as error:
+        print(f"발주 생성 중 데이터 무결성 오류가 발생했습니다: {error}")
+
+
+def auto_reorder():
+    try:
+        store_id = int(input("자동 재주문을 실행할 매장 ID: "))
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute(
+            """
+            SELECT
+                i.product_id,
+                p.product_name,
+                i.stock_quantity,
+                i.reorder_level,
+                i.reorder_quantity,
+                sp.supplier_id,
+                sup.supplier_name
+            FROM Inventory i
+            JOIN Product p ON i.product_id = p.product_id
+            JOIN SupplierProduct sp ON i.product_id = sp.product_id
+            JOIN Supplier sup ON sp.supplier_id = sup.supplier_id
+            WHERE i.store_id = ?
+              AND i.stock_quantity <= i.reorder_level
+            ORDER BY sp.supplier_id, i.product_id;
+            """,
+            (store_id,)
+        )
+
+        low_stock_items = cur.fetchall()
+
+        if not low_stock_items:
+            print("자동 재주문이 필요한 상품이 없습니다.")
+            conn.close()
+            return
+
+        orders_by_supplier = {}
+
+        for item in low_stock_items:
+            (
+                product_id,
+                product_name,
+                stock_quantity,
+                reorder_level,
+                reorder_quantity,
+                supplier_id,
+                supplier_name
+            ) = item
+
+            if supplier_id not in orders_by_supplier:
+                orders_by_supplier[supplier_id] = {
+                    "supplier_name": supplier_name,
+                    "items": []
+                }
+
+            orders_by_supplier[supplier_id]["items"].append(
+                (product_id, product_name, stock_quantity, reorder_level, reorder_quantity)
+            )
+
+        created_orders = []
+
+        for supplier_id, order_info in orders_by_supplier.items():
+            cur.execute(
+                """
+                INSERT INTO PurchaseOrder (order_datetime, status, store_id, supplier_id)
+                VALUES (?, 'ORDERED', ?, ?);
+                """,
+                (now, store_id, supplier_id)
+            )
+
+            po_id = cur.lastrowid
+
+            for product_id, product_name, stock_quantity, reorder_level, reorder_quantity in order_info["items"]:
+                cur.execute(
+                    """
+                    INSERT INTO PurchaseOrderItem (po_id, product_id, order_quantity)
+                    VALUES (?, ?, ?);
+                    """,
+                    (po_id, product_id, reorder_quantity)
+                )
+
+            created_orders.append((po_id, order_info["supplier_name"], len(order_info["items"])))
+
+        conn.commit()
+        conn.close()
+
+        print("자동 재주문 발주 생성 완료!")
+        print_rows(
+            created_orders,
+            ["발주ID", "공급업체", "발주 상품 종류 수"]
+        )
+
+    except ValueError:
+        print("매장 ID는 숫자로 입력해야 합니다.")
+    except sqlite3.IntegrityError as error:
+        print(f"자동 재주문 발주 생성 중 데이터 무결성 오류가 발생했습니다: {error}")
 
 
 def supplier_menu():
@@ -461,16 +574,20 @@ def supplier_orders():
             po.po_id,
             po.order_datetime,
             po.status,
-            po.fulfillment,
             s.store_name,
             p.product_name,
             poi.order_quantity,
-            poi.received_quantity
+            COALESCE(SUM(sri.received_quantity), 0) AS received_quantity
         FROM PurchaseOrder po
         JOIN Store s ON po.store_id = s.store_id
         JOIN PurchaseOrderItem poi ON po.po_id = poi.po_id
         JOIN Product p ON poi.product_id = p.product_id
+        LEFT JOIN StockReceipt sr ON po.po_id = sr.po_id
+        LEFT JOIN StockReceiptItem sri
+            ON sr.receipt_id = sri.receipt_id
+           AND poi.product_id = sri.product_id
         WHERE po.supplier_id = ?
+        GROUP BY po.po_id, p.product_id
         ORDER BY po.order_datetime DESC;
         """
 
@@ -480,7 +597,7 @@ def supplier_orders():
 
         print_rows(
             rows,
-            ["발주ID", "발주일시", "상태", "납품완료", "매장", "상품명", "발주수량", "입고수량"]
+            ["발주ID", "발주일시", "상태", "매장", "상품명", "발주수량", "입고수량"]
         )
 
     except ValueError:
@@ -500,7 +617,7 @@ def process_delivery():
 
         cur.execute(
             """
-            SELECT po.store_id
+            SELECT po.store_id, poi.order_quantity
             FROM PurchaseOrder po
             JOIN PurchaseOrderItem poi ON po.po_id = poi.po_id
             WHERE po.po_id = ? AND poi.product_id = ?;
@@ -515,16 +632,40 @@ def process_delivery():
             conn.close()
             return
 
-        store_id = result[0]
+        store_id, order_quantity = result
 
         cur.execute(
             """
-            UPDATE PurchaseOrderItem
-            SET received_quantity = ?,
-                received_datetime = ?
-            WHERE po_id = ? AND product_id = ?;
+            SELECT COALESCE(SUM(sri.received_quantity), 0)
+            FROM StockReceipt sr
+            JOIN StockReceiptItem sri ON sr.receipt_id = sri.receipt_id
+            WHERE sr.po_id = ? AND sri.product_id = ?;
             """,
-            (received_quantity, now, po_id, product_id)
+            (po_id, product_id)
+        )
+        already_received = cur.fetchone()[0]
+
+        if already_received + received_quantity > order_quantity:
+            print("입고 수량이 발주 수량을 초과합니다.")
+            conn.close()
+            return
+
+        cur.execute(
+            """
+            INSERT INTO StockReceipt (po_id, received_datetime)
+            VALUES (?, ?);
+            """,
+            (po_id, now)
+        )
+
+        receipt_id = cur.lastrowid
+
+        cur.execute(
+            """
+            INSERT INTO StockReceiptItem (receipt_id, product_id, received_quantity)
+            VALUES (?, ?, ?);
+            """,
+            (receipt_id, product_id, received_quantity)
         )
 
         cur.execute(
@@ -537,35 +678,37 @@ def process_delivery():
             (received_quantity, now, store_id, product_id)
         )
 
+        new_received_total = already_received + received_quantity
+        new_status = "FULFILLED" if new_received_total == order_quantity else "PARTIAL"
+
         cur.execute(
             """
             UPDATE PurchaseOrder
-            SET status = 'fulfilled',
-                fulfillment = 'Y'
+            SET status = ?
             WHERE po_id = ?;
             """,
-            (po_id,)
+            (new_status, po_id)
         )
 
         conn.commit()
         conn.close()
 
-        print("납품 처리 완료! 재고가 증가했습니다.")
+        print(f"납품 처리 완료! 입고번호: {receipt_id}, 발주 상태: {new_status}")
 
     except ValueError:
         print("숫자를 입력해야 하는 항목이 있습니다.")
+    except sqlite3.IntegrityError as error:
+        print(f"납품 처리 중 데이터 무결성 오류가 발생했습니다: {error}")
 
 
 def update_order_status():
     try:
         po_id = int(input("상태를 수정할 발주 ID: "))
-        status = input("새 상태 입력(pending/processing/fulfilled/cancelled): ")
+        status = input("새 상태 입력(ORDERED/PARTIAL/FULFILLED/CANCELLED): ").strip().upper()
 
-        if status not in ("pending", "processing", "fulfilled", "cancelled"):
+        if status not in VALID_ORDER_STATUSES:
             print("올바르지 않은 상태입니다.")
             return
-
-        fulfillment = "Y" if status == "fulfilled" else "N"
 
         conn = get_connection()
         cur = conn.cursor()
@@ -573,11 +716,10 @@ def update_order_status():
         cur.execute(
             """
             UPDATE PurchaseOrder
-            SET status = ?,
-                fulfillment = ?
+            SET status = ?
             WHERE po_id = ?;
             """,
-            (status, fulfillment, po_id)
+            (status, po_id)
         )
 
         if cur.rowcount == 0:
@@ -600,6 +742,7 @@ def analysis_menu():
         print("3. 매출 상위 5개 매장")
         print("4. 코카콜라보다 펩시가 더 많이 판매된 매장 수")
         print("5. 우유와 함께 구매된 상품 TOP 3")
+        print("6. 상품별 하위 타입 정보 조회")
         print("0. 뒤로 가기")
 
         choice = input("메뉴를 선택하세요: ")
@@ -614,6 +757,8 @@ def analysis_menu():
             pepsi_more_than_coke()
         elif choice == "5":
             products_bought_with_milk()
+        elif choice == "6":
+            product_subclass_report()
         elif choice == "0":
             break
         else:
@@ -625,24 +770,45 @@ def top_products_by_store():
     cur = conn.cursor()
 
     query = """
+    WITH store_product_sales AS (
+        SELECT
+            s.store_id,
+            s.store_name,
+            p.product_id,
+            p.product_name,
+            SUM(si.quantity) AS total_quantity
+        FROM Sale sa
+        JOIN Store s ON sa.store_id = s.store_id
+        JOIN SaleItem si ON sa.sale_id = si.sale_id
+        JOIN Product p ON si.product_id = p.product_id
+        GROUP BY s.store_id, p.product_id
+    ),
+    ranked_sales AS (
+        SELECT
+            store_name,
+            product_name,
+            total_quantity,
+            ROW_NUMBER() OVER (
+                PARTITION BY store_id
+                ORDER BY total_quantity DESC
+            ) AS ranking
+        FROM store_product_sales
+    )
     SELECT
-        s.store_name,
-        p.product_name,
-        SUM(si.quantity) AS total_quantity
-    FROM Sale sa
-    JOIN Store s ON sa.store_id = s.store_id
-    JOIN SaleItem si ON sa.sale_id = si.sale_id
-    JOIN Product p ON si.product_id = p.product_id
-    GROUP BY s.store_id, p.product_id
-    ORDER BY s.store_name, total_quantity DESC
-    LIMIT 20;
+        store_name,
+        ranking,
+        product_name,
+        total_quantity
+    FROM ranked_sales
+    WHERE ranking <= 20
+    ORDER BY store_name, ranking;
     """
 
     cur.execute(query)
     rows = cur.fetchall()
     conn.close()
 
-    print_rows(rows, ["매장명", "상품명", "총 판매수량"])
+    print_rows(rows, ["매장명", "순위", "상품명", "총 판매수량"])
 
 
 def top_products_by_region():
@@ -650,24 +816,44 @@ def top_products_by_region():
     cur = conn.cursor()
 
     query = """
+    WITH region_product_sales AS (
+        SELECT
+            s.province,
+            p.product_id,
+            p.product_name,
+            SUM(si.quantity) AS total_quantity
+        FROM Sale sa
+        JOIN Store s ON sa.store_id = s.store_id
+        JOIN SaleItem si ON sa.sale_id = si.sale_id
+        JOIN Product p ON si.product_id = p.product_id
+        GROUP BY s.province, p.product_id
+    ),
+    ranked_sales AS (
+        SELECT
+            province,
+            product_name,
+            total_quantity,
+            ROW_NUMBER() OVER (
+                PARTITION BY province
+                ORDER BY total_quantity DESC
+            ) AS ranking
+        FROM region_product_sales
+    )
     SELECT
-        s.province,
-        p.product_name,
-        SUM(si.quantity) AS total_quantity
-    FROM Sale sa
-    JOIN Store s ON sa.store_id = s.store_id
-    JOIN SaleItem si ON sa.sale_id = si.sale_id
-    JOIN Product p ON si.product_id = p.product_id
-    GROUP BY s.province, p.product_id
-    ORDER BY s.province, total_quantity DESC
-    LIMIT 20;
+        province,
+        ranking,
+        product_name,
+        total_quantity
+    FROM ranked_sales
+    WHERE ranking <= 20
+    ORDER BY province, ranking;
     """
 
     cur.execute(query)
     rows = cur.fetchall()
     conn.close()
 
-    print_rows(rows, ["시·도", "상품명", "총 판매수량"])
+    print_rows(rows, ["시·도", "순위", "상품명", "총 판매수량"])
 
 
 def top_stores_by_sales():
@@ -760,6 +946,42 @@ def products_bought_with_milk():
     conn.close()
 
     print_rows(rows, ["함께 구매된 상품", "함께 구매된 수량"])
+
+
+def product_subclass_report():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    query = """
+    SELECT
+        p.product_id,
+        p.product_name,
+        b.brand_name,
+        CASE
+            WHEN fb.product_id IS NOT NULL THEN 'FoodBeverageProduct'
+            WHEN dg.product_id IS NOT NULL THEN 'DailyGoodsProduct'
+            WHEN hp.product_id IS NOT NULL THEN 'HealthProduct'
+            ELSE 'GeneralProduct'
+        END AS product_subclass,
+        fb.expiration_date,
+        dg.material,
+        hp.dosage_form
+    FROM Product p
+    JOIN Brand b ON p.brand_id = b.brand_id
+    LEFT JOIN FoodBeverageProduct fb ON p.product_id = fb.product_id
+    LEFT JOIN DailyGoodsProduct dg ON p.product_id = dg.product_id
+    LEFT JOIN HealthProduct hp ON p.product_id = hp.product_id
+    ORDER BY p.product_id;
+    """
+
+    cur.execute(query)
+    rows = cur.fetchall()
+    conn.close()
+
+    print_rows(
+        rows,
+        ["상품ID", "상품명", "브랜드", "하위타입", "유통기한", "재질", "제형"]
+    )
 
 
 def main():
