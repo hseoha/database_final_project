@@ -1,7 +1,9 @@
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 
-DB_NAME = "emart24.db"
+BASE_DIR = Path(__file__).resolve().parent
+DB_NAME = BASE_DIR / "emart24.db"
 
 
 def insert_sample_data():
@@ -200,6 +202,16 @@ def insert_sample_data():
         (5, "편의점종합물류"),
         (6, "풀무원식품"),
         (7, "오뚜기물류")
+    ]
+
+    supplier_brands = [
+        (1, 1),
+        (2, 2), (2, 11),
+        (3, 3), (3, 4), (3, 12),
+        (4, 5),
+        (5, 6), (5, 7), (5, 8), (5, 9), (5, 10), (5, 11), (5, 13),
+        (6, 14),
+        (7, 15)
     ]
 
     supplier_products = [
@@ -427,6 +439,7 @@ def insert_sample_data():
     cur.executemany("INSERT INTO Category VALUES (?, ?, ?)", categories)
     cur.executemany("INSERT INTO ProductCategory VALUES (?, ?)", product_categories)
     cur.executemany("INSERT INTO Supplier VALUES (?, ?)", suppliers)
+    cur.executemany("INSERT INTO SupplierBrand VALUES (?, ?)", supplier_brands)
     cur.executemany("INSERT INTO SupplierProduct VALUES (?, ?, ?)", supplier_products)
     cur.executemany("INSERT INTO Inventory VALUES (?, ?, ?, ?, ?, ?, ?)", inventory)
     cur.executemany("INSERT INTO Sale VALUES (?, ?, ?, ?, ?)", sales)

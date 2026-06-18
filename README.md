@@ -16,6 +16,7 @@ database_final_project/
 ├── main_cli.py
 ├── sample_queries.sql
 ├── README.md
+├── data_link.txt
 └── docs/
 ```
 
@@ -24,7 +25,7 @@ database_final_project/
 ### schema.sql
 
 SQLite 데이터베이스의 relation을 생성하는 SQL 파일이다.  
-Retailer, Store, Customer, Brand, Product, FoodBeverageProduct, DailyGoodsProduct, HealthProduct, Category, ProductCategory, Supplier, SupplierProduct, Inventory, Sale, SaleItem, PurchaseOrder, PurchaseOrderItem, StockReceipt, StockReceiptItem 테이블을 정의한다.
+Retailer, Store, Customer, Brand, Product, FoodBeverageProduct, DailyGoodsProduct, HealthProduct, Category, ProductCategory, Supplier, SupplierBrand, SupplierProduct, Inventory, Sale, SaleItem, PurchaseOrder, PurchaseOrderItem, StockReceipt, StockReceiptItem 테이블을 정의한다.
 
 각 테이블에는 Primary Key, Foreign Key, CHECK constraint, UNIQUE constraint가 포함되어 있으며, 자주 사용되는 검색 및 조인 조건에 대해 index를 생성한다.
 
@@ -36,7 +37,7 @@ Retailer, Store, Customer, Brand, Product, FoodBeverageProduct, DailyGoodsProduc
 ### insert_sample_data.py
 
 프로젝트 테스트에 필요한 샘플 데이터를 데이터베이스에 삽입한다.  
-매장, 고객, 브랜드, 상품, 상품 하위 타입, 카테고리, 공급업체, 재고, 판매 내역, 발주 내역, 입고 내역 등의 데이터를 포함한다.
+매장, 고객, 브랜드, 상품, 상품 하위 타입, 카테고리, 공급업체, 공급업체별 취급 브랜드, 공급업체별 공급 상품, 재고, 판매 내역, 발주 내역, 입고 내역 등의 데이터를 포함한다.
 
 ### main_cli.py
 
@@ -51,7 +52,13 @@ Retailer, Store, Customer, Brand, Product, FoodBeverageProduct, DailyGoodsProduc
 ### sample_queries.sql
 
 프로젝트 명세서에서 요구한 분석용 sample query를 정리한 SQL 파일이다.  
-매장별 상위 20개 인기 상품, 시·도별 상위 20개 인기 상품, 매출 상위 5개 매장, 브랜드별 판매량 비교, 함께 구매된 상품 분석, 재고 부족 상품 조회, 발주 및 입고 현황 조회, 상품 하위 타입 조회, 자동 재주문 대상 상품 조회 쿼리를 포함한다.
+매장별 상위 20개 인기 상품, 시·도별 상위 20개 인기 상품, 매출 상위 5개 매장, 브랜드별 판매량 비교, 함께 구매된 상품 분석, 재고 부족 상품 조회, 발주 및 입고 현황 조회, 상품 하위 타입 조회, 자동 재주문 대상 상품 조회, 공급업체별 취급 브랜드 조회 쿼리를 포함한다.
+
+터미널에서 `sqlite3 emart24.db < sample_queries.sql` 명령어를 실행하면 sample query 결과를 확인할 수 있다.
+
+### data_link.txt
+
+최종 제출 ZIP에 포함하지 않는 생성된 SQLite 데이터베이스 파일(`emart24.db`)의 클라우드 공유 링크를 기록하는 파일이다.
 
 ### docs/
 
@@ -81,6 +88,14 @@ python3 insert_sample_data.py
 
 ```bash
 python3 main_cli.py
+```
+
+### 4단계. Sample query 실행
+
+필요한 경우 다음 명령어로 sample query를 실행할 수 있다.
+
+```bash
+sqlite3 emart24.db < sample_queries.sql
 ```
 
 실행하면 다음과 같은 메뉴가 표시된다.
@@ -113,13 +128,14 @@ python3 main_cli.py
 - 발주 요청 생성
 - 자동 재주문 발주 생성
 
-자동 재주문 발주 생성 기능은 특정 매장의 재고 수량이 재주문 기준 수량 이하인 상품을 조회한 뒤, 공급업체별로 `PurchaseOrder`와 `PurchaseOrderItem`을 자동 생성한다.
+자동 재주문 발주 생성 기능은 특정 매장의 재고 수량이 재주문 기준 수량 이하인 상품을 조회한 뒤, 동일 상품을 여러 공급업체가 공급하는 경우 `SupplierProduct`의 공급 가격이 가장 낮은 공급업체를 선택하여 `PurchaseOrder`와 `PurchaseOrderItem`을 자동 생성한다.
 
 ### 공급업체 인터페이스
 
 - 공급업체별 발주 요청 목록 조회
 - 납품 처리
 - 발주 상태 업데이트
+- 공급업체별 취급 브랜드 조회
 
 납품 처리는 `StockReceipt`와 `StockReceiptItem` 테이블에 기록되며, 입고 처리 후 해당 매장의 `Inventory` 수량이 증가한다.
 
@@ -131,6 +147,7 @@ python3 main_cli.py
 - 코카콜라보다 펩시가 더 많이 판매된 매장 수 조회
 - 우유와 함께 구매된 상품 TOP 3 조회
 - 상품별 하위 타입 정보 조회
+- 공급업체별 취급 브랜드 조회
 
 ## 6. 주요 테이블 설명
 
@@ -148,9 +165,9 @@ python3 main_cli.py
 
 `FoodBeverageProduct`, `DailyGoodsProduct`, `HealthProduct`는 `Product`의 하위 타입을 표현하는 테이블이다. `FoodBeverageProduct`는 식품 및 음료 상품의 유통기한을 저장하고, `DailyGoodsProduct`는 생활용품의 재질을 저장하며, `HealthProduct`는 건강 관련 상품의 제형을 저장한다. 각 하위 타입 테이블의 `product_id`는 `Product(product_id)`를 참조하는 기본키이자 외래키이다.
 
-### Supplier / SupplierProduct
+### Supplier / SupplierBrand / SupplierProduct
 
-`Supplier`는 공급업체 정보를 저장한다. `SupplierProduct`는 공급업체가 공급할 수 있는 상품과 공급 가격을 저장한다.
+`Supplier`는 공급업체 정보를 저장한다. `SupplierBrand`는 공급업체가 취급하는 브랜드 정보를 저장하며, ER diagram의 `carries` 관계를 구현한다. `SupplierProduct`는 공급업체가 공급할 수 있는 상품과 공급 가격을 저장하며, ER diagram의 `supplies` 관계를 구현한다.
 
 ### Inventory
 
@@ -185,7 +202,7 @@ SQLite3는 Python 표준 라이브러리인 `sqlite3` 모듈을 사용하므로 
 
 ## 8. 참고
 
-데이터 파일 자체인 `emart24.db`는 최종 제출 ZIP에 포함하지 않고, 필요한 경우 별도 클라우드 링크를 통해 제공한다. `insert_sample_data.py`는 데이터베이스 구조와 기능을 확인하기 위한 샘플 데이터 삽입 코드이다.
+데이터 파일 자체인 `emart24.db`는 최종 제출 ZIP에 포함하지 않고, 별도 클라우드 링크를 통해 제공한다. 클라우드 링크는 `data_link.txt`에 기록한다. `insert_sample_data.py`는 데이터베이스 구조와 기능을 확인하기 위한 샘플 데이터 삽입 코드이다.
 
 JupyterLab 또는 Anaconda 환경은 SQL 쿼리 결과를 확인하기 위한 보조 실습 환경으로 사용할 수 있다.  
 최종 실행은 Python 파일을 기준으로 하며, `create_db.py`, `insert_sample_data.py`, `main_cli.py`를 순서대로 실행하면 된다.

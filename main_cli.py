@@ -1,7 +1,9 @@
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 
-DB_NAME = "emart24.db"
+BASE_DIR = Path(__file__).resolve().parent
+DB_NAME = BASE_DIR / "emart24.db"
 
 
 VALID_ORDER_STATUSES = ("ORDERED", "PARTIAL", "FULFILLED", "CANCELLED")
@@ -414,6 +416,20 @@ def create_purchase_order():
 
         cur.execute(
             """
+            SELECT 1
+            FROM SupplierProduct
+            WHERE supplier_id = ? AND product_id = ?;
+            """,
+            (supplier_id, product_id)
+        )
+
+        if cur.fetchone() is None:
+            print("해당 공급업체가 공급하는 상품이 아닙니다. SupplierProduct 정보를 확인하세요.")
+            conn.close()
+            return
+
+        cur.execute(
+            """
             INSERT INTO PurchaseOrder (order_datetime, status, store_id, supplier_id)
             VALUES (?, 'ORDERED', ?, ?);
             """,
@@ -466,6 +482,11 @@ def auto_reorder():
             JOIN Supplier sup ON sp.supplier_id = sup.supplier_id
             WHERE i.store_id = ?
               AND i.stock_quantity <= i.reorder_level
+              AND sp.supply_price = (
+                  SELECT MIN(sp2.supply_price)
+                  FROM SupplierProduct sp2
+                  WHERE sp2.product_id = i.product_id
+              )
             ORDER BY sp.supplier_id, i.product_id;
             """,
             (store_id,)
@@ -546,6 +567,7 @@ def supplier_menu():
         print("1. 발주 요청 목록 조회")
         print("2. 납품 처리")
         print("3. 발주 상태 업데이트")
+        print("4. 공급업체별 취급 브랜드 조회")
         print("0. 뒤로 가기")
 
         choice = input("메뉴를 선택하세요: ")
@@ -556,6 +578,8 @@ def supplier_menu():
             process_delivery()
         elif choice == "3":
             update_order_status()
+        elif choice == "4":
+            supplier_brands()
         elif choice == "0":
             break
         else:
@@ -604,6 +628,41 @@ def supplier_orders():
         print("공급업체 ID는 숫자로 입력해야 합니다.")
 
 
+# 공급업체별 취급 브랜드 조회 함수
+def supplier_brands():
+    try:
+        supplier_input = input("공급업체 ID 입력, 전체 조회는 Enter: ").strip()
+        supplier_id = int(supplier_input) if supplier_input else None
+
+        conn = get_connection()
+        cur = conn.cursor()
+
+        query = """
+        SELECT
+            sup.supplier_id,
+            sup.supplier_name,
+            b.brand_id,
+            b.brand_name
+        FROM SupplierBrand sb
+        JOIN Supplier sup ON sb.supplier_id = sup.supplier_id
+        JOIN Brand b ON sb.brand_id = b.brand_id
+        WHERE (? IS NULL OR sup.supplier_id = ?)
+        ORDER BY sup.supplier_name, b.brand_name;
+        """
+
+        cur.execute(query, (supplier_id, supplier_id))
+        rows = cur.fetchall()
+        conn.close()
+
+        print_rows(
+            rows,
+            ["공급업체ID", "공급업체명", "브랜드ID", "브랜드명"]
+        )
+
+    except ValueError:
+        print("공급업체 ID는 숫자로 입력해야 합니다.")
+
+
 def process_delivery():
     try:
         po_id = int(input("납품 처리할 발주 ID: "))
@@ -633,6 +692,20 @@ def process_delivery():
             return
 
         store_id, order_quantity = result
+
+        cur.execute(
+            """
+            SELECT 1
+            FROM Inventory
+            WHERE store_id = ? AND product_id = ?;
+            """,
+            (store_id, product_id)
+        )
+
+        if cur.fetchone() is None:
+            print("해당 매장에 해당 상품 재고 정보가 없어 입고 처리할 수 없습니다.")
+            conn.close()
+            return
 
         cur.execute(
             """
@@ -743,6 +816,7 @@ def analysis_menu():
         print("4. 코카콜라보다 펩시가 더 많이 판매된 매장 수")
         print("5. 우유와 함께 구매된 상품 TOP 3")
         print("6. 상품별 하위 타입 정보 조회")
+        print("7. 공급업체별 취급 브랜드 조회")
         print("0. 뒤로 가기")
 
         choice = input("메뉴를 선택하세요: ")
@@ -759,6 +833,8 @@ def analysis_menu():
             products_bought_with_milk()
         elif choice == "6":
             product_subclass_report()
+        elif choice == "7":
+            supplier_brand_report()
         elif choice == "0":
             break
         else:
@@ -981,6 +1057,31 @@ def product_subclass_report():
     print_rows(
         rows,
         ["상품ID", "상품명", "브랜드", "하위타입", "유통기한", "재질", "제형"]
+    )
+
+
+# 분석용 공급업체별 취급 브랜드 조회 함수
+def supplier_brand_report():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    query = """
+    SELECT
+        sup.supplier_name,
+        b.brand_name
+    FROM SupplierBrand sb
+    JOIN Supplier sup ON sb.supplier_id = sup.supplier_id
+    JOIN Brand b ON sb.brand_id = b.brand_id
+    ORDER BY sup.supplier_name, b.brand_name;
+    """
+
+    cur.execute(query)
+    rows = cur.fetchall()
+    conn.close()
+
+    print_rows(
+        rows,
+        ["공급업체명", "취급 브랜드"]
     )
 
 

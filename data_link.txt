@@ -1,0 +1,13 @@
+데이터 파일 링크
+
+프로젝트 명세서에 따라 생성된 SQLite 데이터베이스 파일(emart24.db)은 최종 제출 ZIP 파일에 포함하지 않았습니다.
+
+생성된 데이터베이스 파일은 아래 Google Drive 링크에서 확인할 수 있습니다.
+https://drive.google.com/file/d/1hKT9FQleR8XUeNr9HVK7B7REuPEVAl1C/view?usp=sharing
+
+접근 권한:
+링크가 있는 모든 사용자가 보기 가능하도록 설정했습니다.
+
+데이터베이스는 아래 명령어를 순서대로 실행하여 새로 생성할 수도 있습니다.
+1. python3 create_db.py
+2. python3 insert_sample_data.py

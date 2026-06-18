@@ -225,4 +225,19 @@ JOIN Product p ON i.product_id = p.product_id
 JOIN SupplierProduct sp ON i.product_id = sp.product_id
 JOIN Supplier sup ON sp.supplier_id = sup.supplier_id
 WHERE i.stock_quantity <= i.reorder_level
+  AND sp.supply_price = (
+      SELECT MIN(sp2.supply_price)
+      FROM SupplierProduct sp2
+      WHERE sp2.product_id = i.product_id
+  )
 ORDER BY s.store_name, sup.supplier_name, p.product_name;
+
+
+-- 12. 공급업체별 취급 브랜드 조회
+SELECT
+    sup.supplier_name,
+    b.brand_name
+FROM SupplierBrand sb
+JOIN Supplier sup ON sb.supplier_id = sup.supplier_id
+JOIN Brand b ON sb.brand_id = b.brand_id
+ORDER BY sup.supplier_name, b.brand_name;
