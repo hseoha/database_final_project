@@ -113,7 +113,7 @@ def product_detail():
         END AS product_subclass,
         fb.expiration_date,
         dg.material,
-        hp.dosage_form
+        hp.health_product_type
     FROM Product p
     JOIN Brand b ON p.brand_id = b.brand_id
     LEFT JOIN ProductCategory pc ON p.product_id = pc.product_id
@@ -146,7 +146,7 @@ def product_detail():
     print("\n[상품 기본 정보]")
     print_rows(
         rows,
-        ["상품ID", "상품명", "바코드", "브랜드", "규격", "포장", "분류", "하위타입", "유통기한", "재질", "제형"]
+        ["상품ID", "상품명", "바코드", "브랜드", "규격", "포장", "분류", "하위타입", "유통기한", "재질", "건강용품유형"]
     )
 
     print("\n[매장별 가격 및 재고]")
@@ -1041,7 +1041,7 @@ def product_subclass_report():
         END AS product_subclass,
         fb.expiration_date,
         dg.material,
-        hp.dosage_form
+        hp.health_product_type
     FROM Product p
     JOIN Brand b ON p.brand_id = b.brand_id
     LEFT JOIN FoodBeverageProduct fb ON p.product_id = fb.product_id
@@ -1056,7 +1056,7 @@ def product_subclass_report():
 
     print_rows(
         rows,
-        ["상품ID", "상품명", "브랜드", "하위타입", "유통기한", "재질", "제형"]
+        ["상품ID", "상품명", "브랜드", "하위타입", "유통기한", "재질", "건강용품유형"]
     )
 
 

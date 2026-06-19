@@ -1,4 +1,10 @@
+.headers on
+.mode column
+
 -- 1. 각 매장별 가장 많이 판매된 상위 20개 제품
+SELECT '';
+SELECT '1. 각 매장별 가장 많이 판매된 상위 20개 제품' AS query_title;
+
 WITH store_product_sales AS (
     SELECT
         s.store_id,
@@ -34,6 +40,9 @@ ORDER BY store_name, ranking;
 
 
 -- 2. 시·도별 가장 많이 판매된 상위 20개 제품
+SELECT '';
+SELECT '2. 시·도별 가장 많이 판매된 상위 20개 제품' AS query_title;
+
 WITH region_product_sales AS (
     SELECT
         s.province,
@@ -68,6 +77,9 @@ ORDER BY province, ranking;
 
 
 -- 3. 판매 실적이 우수한 상위 5개 매장
+SELECT '';
+SELECT '3. 판매 실적이 우수한 상위 5개 매장' AS query_title;
+
 SELECT
     s.store_name,
     s.province,
@@ -82,6 +94,9 @@ LIMIT 5;
 
 
 -- 4. 코카콜라보다 펩시콜라가 더 많이 판매된 매장의 수
+SELECT '';
+SELECT '4. 코카콜라보다 펩시콜라가 더 많이 판매된 매장의 수' AS query_title;
+
 WITH brand_sales AS (
     SELECT
         s.store_id,
@@ -112,6 +127,9 @@ WHERE pepsi_qty > coke_qty;
 
 
 -- 5. 소비자가 우유와 함께 가장 많이 구매한 제품 상위 3개
+SELECT '';
+SELECT '5. 소비자가 우유와 함께 가장 많이 구매한 제품 상위 3개' AS query_title;
+
 SELECT
     p2.product_name,
     SUM(si2.quantity) AS together_quantity
@@ -127,6 +145,9 @@ LIMIT 3;
 
 
 -- 6. 현재 재고가 재주문 기준 이하인 상품 조회
+SELECT '';
+SELECT '6. 현재 재고가 재주문 기준 이하인 상품 조회' AS query_title;
+
 SELECT
     s.store_name,
     p.product_name,
@@ -141,6 +162,9 @@ ORDER BY s.store_name, i.stock_quantity ASC;
 
 
 -- 7. 공급업체별 미처리 발주 목록 조회
+SELECT '';
+SELECT '7. 공급업체별 미처리 발주 목록 조회' AS query_title;
+
 SELECT
     sup.supplier_name,
     po.po_id,
@@ -155,6 +179,9 @@ ORDER BY po.order_datetime;
 
 
 -- 8. 발주별 상품 입고 현황 조회
+SELECT '';
+SELECT '8. 발주별 상품 입고 현황 조회' AS query_title;
+
 SELECT
     po.po_id,
     po.status,
@@ -178,6 +205,9 @@ ORDER BY po.po_id, p.product_name;
 
 
 -- 9. 특정 상품의 공급업체 및 공급 가격 조회
+SELECT '';
+SELECT '9. 특정 상품의 공급업체 및 공급 가격 조회' AS query_title;
+
 SELECT
     p.product_name,
     sup.supplier_name,
@@ -189,6 +219,9 @@ ORDER BY p.product_name, sp.supply_price;
 
 
 -- 10. 상품별 하위 타입 정보 조회
+SELECT '';
+SELECT '10. 상품별 하위 타입 정보 조회' AS query_title;
+
 SELECT
     p.product_id,
     p.product_name,
@@ -201,7 +234,7 @@ SELECT
     END AS product_subclass,
     fb.expiration_date,
     dg.material,
-    hp.dosage_form
+    hp.health_product_type
 FROM Product p
 JOIN Brand b ON p.brand_id = b.brand_id
 LEFT JOIN FoodBeverageProduct fb ON p.product_id = fb.product_id
@@ -211,6 +244,9 @@ ORDER BY p.product_id;
 
 
 -- 11. 자동 재주문 발주 대상 상품 조회
+SELECT '';
+SELECT '11. 자동 재주문 발주 대상 상품 조회' AS query_title;
+
 SELECT
     s.store_name,
     p.product_name,
@@ -234,6 +270,9 @@ ORDER BY s.store_name, sup.supplier_name, p.product_name;
 
 
 -- 12. 공급업체별 취급 브랜드 조회
+SELECT '';
+SELECT '12. 공급업체별 취급 브랜드 조회' AS query_title;
+
 SELECT
     sup.supplier_name,
     b.brand_name

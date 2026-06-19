@@ -84,18 +84,18 @@ python3 insert_sample_data.py
 
 샘플 데이터가 데이터베이스에 삽입된다.
 
-### 3단계. CLI 프로그램 실행
-
-```bash
-python3 main_cli.py
-```
-
-### 4단계. Sample query 실행
+### 3단계. Sample query 실행
 
 필요한 경우 다음 명령어로 sample query를 실행할 수 있다.
 
 ```bash
 sqlite3 emart24.db < sample_queries.sql
+```
+
+### 4단계. CLI 프로그램 실행
+
+```bash
+python3 main_cli.py
 ```
 
 실행하면 다음과 같은 메뉴가 표시된다.
@@ -163,7 +163,7 @@ sqlite3 emart24.db < sample_queries.sql
 
 `Brand`는 상품 브랜드 정보를 저장하고, `Product`는 개별 상품의 이름, 바코드, 규격, 포장 형태, 브랜드 정보를 저장한다.
 
-`FoodBeverageProduct`, `DailyGoodsProduct`, `HealthProduct`는 `Product`의 하위 타입을 표현하는 테이블이다. `FoodBeverageProduct`는 식품 및 음료 상품의 유통기한을 저장하고, `DailyGoodsProduct`는 생활용품의 재질을 저장하며, `HealthProduct`는 건강 관련 상품의 제형을 저장한다. 각 하위 타입 테이블의 `product_id`는 `Product(product_id)`를 참조하는 기본키이자 외래키이다.
+`FoodBeverageProduct`, `DailyGoodsProduct`, `HealthProduct`는 `Product`의 하위 타입을 표현하는 테이블이다. `FoodBeverageProduct`는 식품 및 음료 상품의 유통기한을 저장하고, `DailyGoodsProduct`는 생활용품의 재질을 저장하며, `HealthProduct`는 건강 관련 상품의 유형을 저장한다. 각 하위 타입 테이블의 `product_id`는 `Product(product_id)`를 참조하는 기본키이자 외래키이다.
 
 ### Supplier / SupplierBrand / SupplierProduct
 

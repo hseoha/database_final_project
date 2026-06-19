@@ -435,7 +435,7 @@ def insert_sample_data():
     cur.executemany("INSERT INTO Product VALUES (?, ?, ?, ?, ?, ?)", products)
     cur.executemany("INSERT INTO FoodBeverageProduct VALUES (?, ?)", food_beverage_products)
     cur.executemany("INSERT INTO DailyGoodsProduct VALUES (?, ?)", daily_goods_products)
-    cur.executemany("INSERT INTO HealthProduct VALUES (?, ?)", health_products)
+    cur.executemany("INSERT INTO HealthProduct (product_id, health_product_type) VALUES (?, ?)", health_products)
     cur.executemany("INSERT INTO Category VALUES (?, ?, ?)", categories)
     cur.executemany("INSERT INTO ProductCategory VALUES (?, ?)", product_categories)
     cur.executemany("INSERT INTO Supplier VALUES (?, ?)", suppliers)

@@ -78,7 +78,7 @@ CREATE TABLE DailyGoodsProduct (
 
 CREATE TABLE HealthProduct (
     product_id INTEGER PRIMARY KEY,
-    dosage_form TEXT,
+    health_product_type TEXT,
     FOREIGN KEY (product_id) REFERENCES Product(product_id)
 );
 
